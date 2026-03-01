@@ -4,7 +4,7 @@
 
 <h1>MP3 Streams Echoed</h1>
 
-<p><strong>A modern, fully Python‑3‑native rebuild of the classic MP3 Streams Reloaded (v0.7, 2022).</strong></p>
+<p><strong>A modern, fully Python‑3‑native rebuild of the classic MP3 Streams Reloaded and the original 2000's code.</strong></p>
 
 <p>
 This fork preserves the spirit of the original addon while replacing its aging Python 2/3 bridge code, fixing long‑standing crashes, modernizing the request + session pipeline, and expanding the UX with playlists, favourites, richer metadata, fanart, and visualizer control.
