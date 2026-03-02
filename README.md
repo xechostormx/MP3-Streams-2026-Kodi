@@ -103,7 +103,7 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
 
 <h2>v2026.3.3 – v2026.3.7</h2>
 
-<h3>Final Cleanup & Deep Bug Fixes</h3>
+<h3>Deep Bug Fixes</h3>
 <ul>
   <li>Artists were present but not visible in some skins; fixed by adding <code>setLabel2(artist)</code> to album ListItems.</li>
   <li>Audit pass fixed several silent issues: duplicate <code>_ensure_session</code> definition, log object used before initialization, artist parsing pulling nav/header links, login‑wall pages misdetected, and song search overwriting stored <code>album_url</code> values.</li>
