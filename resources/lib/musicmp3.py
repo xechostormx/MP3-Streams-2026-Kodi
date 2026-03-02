@@ -5,6 +5,14 @@
 #   by L2501 / MP3 Streams project
 # v2026.3: stability pass, session resilience, cache poison protection
 #   by Echostorm / Claude
+# v2026.3.4: audit pass — removed duplicate _ensure_session; main_artists
+#   now filters to /artist/ hrefs; main_albums uses _page_has_content;
+#   song search preserves album_url; _has_valid_session documented as
+#   diagnostic-only; misleading comments corrected.
+# v2026.3.5: fix artist pages returning zero albums — _parse_album_report
+#   required artist_el and date_el which are absent on artist pages (not
+#   needed there since artist_albums() overrides artist with page H1 anyway).
+#   Now only name, image, link are required; artist/date/details are optional.
 # MP3 Streams Echoed
 #
 # v2026.3 changes:
@@ -41,7 +49,7 @@
 #
 # 6. SESSION HEALTH CHECK — _has_valid_session() inspects the cookie jar and
 #    returns False if SessionId is absent, empty, or clearly a placeholder.
-#    Used by _cached_get and _ensure_session.
+#    Not used in hot paths (cannot detect server-side session rejection).
 #
 # OTHER IMPROVEMENTS:
 # -------------------
@@ -204,6 +212,12 @@ class musicMp3:
         """
         Return True if the cookie jar contains a non-empty SessionId.
         A missing, blank, or obviously-placeholder value returns False.
+
+        NOTE: This is a cookie-jar check only. A cookie can exist but be
+        rejected by the server (stale session), which this cannot detect.
+        For that reason this method is NOT used in the hot path — all
+        listing fetches call _ensure_session() unconditionally instead.
+        This method is retained as a diagnostic/utility helper.
         """
         cookies = requests.utils.dict_from_cookiejar(self.s.cookies)
         sid = cookies.get("SessionId", "")
@@ -240,10 +254,10 @@ class musicMp3:
           album_report        — genre/artist album grids, search album results
           artist_preview      — search artist results
           tr.song             — song rows (search songs, album tracks)
-          a[href*=/artist/]   — main_artists listing pages (bare <a> links
-                                whose href contains /artist/ — login walls
-                                never link to /artist/ paths)
-          a[href*=/album/]    — album links on artist pages
+          a[href^=/artist_]   — main_artists listing pages
+                                (URLs are /artist_name.html, NOT /artist/name)
+          a[href*=__album_]   — album links on artist pages
+                                (URLs are /artist_name__album_title.html)
         """
         if soup.find(class_="album_report"):
             return True
@@ -251,11 +265,11 @@ class musicMp3:
             return True
         if soup.find("tr", class_="song"):
             return True
-        # Artist listing pages: links whose href contains /artist/ or /album/
-        # These are never present on login/error pages.
-        if soup.find("a", href=lambda h: h and "/artist/" in h):
+        # Artist listing pages: hrefs start with /artist_ (e.g. /artist_the-beatles.html)
+        if soup.find("a", href=lambda h: h and h.startswith("/artist_")):
             return True
-        if soup.find("a", href=lambda h: h and "/album/" in h):
+        # Album links on artist pages: /artist_name__album_title.html
+        if soup.find("a", href=lambda h: h and "__album_" in h):
             return True
         return False
 
@@ -363,7 +377,7 @@ class musicMp3:
     def _parse_album_report(self, album_el):
         """
         Parse a single album_report element into a dict.
-        Returns None if any required field is missing.
+        Returns None if any *required* field is missing.
 
         HTML structure on musicmp3.ru:
           <li class="unstyled">          ← parent / search scope
@@ -378,9 +392,14 @@ class musicMp3:
             <div  class="album_report__details_content">…</div>  ← SIBLING
           </li>
 
-        artist/date/details live outside the album_report div, so we must
-        search the parent element to find them. We fall back to searching
-        album_el itself in case the site ever flattens the structure.
+        On GENRE/SEARCH listing pages: all sibling fields are present.
+        On ARTIST pages: album_report__artist and album_report__date are
+        absent because the artist is the page owner and the date is not
+        always shown per-album. artist_albums() overrides artist with the
+        page H1 anyway, so missing artist_el is harmless there.
+
+        Required:  name, image, link  (without these we can't display or navigate)
+        Optional:  artist, date, details  (missing = empty string, not a fatal error)
         """
         try:
             # Prefer to search the parent so we catch sibling elements.
@@ -390,30 +409,34 @@ class musicMp3:
             name_el   = album_el.find(class_="album_report__name")
             image_el  = album_el.find(class_="album_report__image")
             link_el   = album_el.find(class_="album_report__link")
-            artist_el = scope.find(class_="album_report__artist")
-            date_el   = scope.find(class_="album_report__date")
 
-            if not all([name_el, image_el, link_el, artist_el, date_el]):
-                # Log which fields are missing to aid future debugging
+            # Required fields — abort if any are missing
+            if not all([name_el, image_el, link_el]):
                 missing = [n for n, el in [
                     ("name", name_el), ("image", image_el), ("link", link_el),
-                    ("artist", artist_el), ("date", date_el),
                 ] if not el]
-                log.warning("album_report missing fields %s — skipping", missing)
+                log.warning("album_report missing required fields %s — skipping", missing)
                 return None
+
+            # Optional sibling fields — absent on artist pages, present on genre/search pages
+            artist_el = scope.find(class_="album_report__artist")
+            date_el   = scope.find(class_="album_report__date")
+            details_el = scope.find(class_="album_report__details_content")
+
+            if not artist_el:
+                log.debug("album_report__artist not found (expected on artist pages)")
+            if not date_el:
+                log.debug("album_report__date not found (expected on artist pages)")
 
             entry = {
                 "title":       name_el.get_text(strip=True),
                 "image":       self.image_url(image_el.get("src", "")),
                 "link":        urljoin(self.base_url, link_el.get("href", "")),
-                "artist_link": urljoin(self.base_url, artist_el.get("href", "")),
-                "artist":      artist_el.get_text(strip=True),
-                "date":        date_el.get_text(strip=True),
-                "details":     "",
+                "artist_link": urljoin(self.base_url, artist_el.get("href", "")) if artist_el else "",
+                "artist":      artist_el.get_text(strip=True) if artist_el else "",
+                "date":        date_el.get_text(strip=True) if date_el else "",
+                "details":     details_el.get_text(strip=True) if details_el else "",
             }
-            details_el = scope.find(class_="album_report__details_content")
-            if details_el:
-                entry["details"] = details_el.get_text(strip=True)
             return entry
         except Exception as exc:
             log.warning("Failed to parse album_report: %s", exc)
@@ -452,18 +475,6 @@ class musicMp3:
         a = int(a & 0x7FFFFFFF)
         b = int(b & 0x7FFFFFFF)
         return format(a, '08x') + format(b, '08x')
-
-    def _ensure_session(self, referer_url=None):
-        target = referer_url if referer_url else self.base_url
-        try:
-            self.s.get(
-                target,
-                headers={"Referer": self.base_url},
-                timeout=self.timeout,
-            )
-            self._save_cookies()
-        except Exception as exc:
-            log.warning("Session refresh failed: %s", exc)
 
     def play_url(self, track_id, rel, referer_url=None):
         self._ensure_session(referer_url)
@@ -514,8 +525,15 @@ class musicMp3:
     # Public API methods
     # ----------------------------------------------------------------------- #
 
-    def search(self, text, cat):
-        """Search musicmp3.ru. cat: 'artists' | 'albums' | 'songs'."""
+    def search(self, text, cat, limit=None):
+        """
+        Search musicmp3.ru. cat: 'artists' | 'albums' | 'songs'.
+
+        limit: max results to return for 'songs' only. The song search page
+        returns ALL matching tracks in one response (no server-side pagination),
+        which can be thousands of rows. Without a cap, Kodi receives too many
+        ListItems to render and shows nothing. Default None = no cap.
+        """
         params = {"text": text, "all": cat}
 
         # Always refresh session before search — stale session returns empty page
@@ -547,6 +565,7 @@ class musicMp3:
 
         self._save_cookies()
         results = []
+        log.debug("search: cat=%s, page_has_content=%s", cat, self._page_has_content(soup))
 
         if cat == "artists":
             for artist in soup.find_all(class_="artist_preview"):
@@ -564,7 +583,16 @@ class musicMp3:
 
         elif cat == "songs":
             tracks = []
-            for song in soup.find_all("tr", class_="song"):
+            song_rows = soup.find_all("tr", class_="song")
+            cap = limit if limit else len(song_rows)
+            log.debug("search songs: found %d tr.song rows (capping at %d)", len(song_rows), cap)
+            if not song_rows:
+                log.warning(
+                    "search songs: no tr.song rows found. "
+                    "Page text snippet: %s",
+                    soup.get_text()[:200].replace("\n", " ")
+                )
+            for song in song_rows[:cap]:
                 try:
                     play_el   = song.find("td", class_="song__play_button")
                     name_td   = song.find("td", class_="song__name--search")
@@ -594,9 +622,11 @@ class musicMp3:
                         cached   = Track.get(Track.rel == rel)
                         duration = cached.duration
                         image    = cached.image
+                        album_url = cached.album_url  # preserve if already known
                     except Track.DoesNotExist:
                         duration = ""
                         image    = ""
+                        album_url = ""
 
                     tracks.append({
                         "title":    title,
@@ -606,6 +636,7 @@ class musicMp3:
                         "image":    image,
                         "track_id": track_id,
                         "rel":      rel,
+                        "album_url": album_url,
                     })
                 except Exception as exc:
                     log.warning("Skipping song search result: %s", exc)
@@ -631,10 +662,22 @@ class musicMp3:
                 "https://musicmp3.ru/main_artists.html", params=params
             )
             if not self._page_has_content(soup):
+                log.warning("main_artists: _page_has_content failed for page %d gnr_id=%s", _page, gnr_id)
+                break
+
+            # Artist pages use the URL pattern /artist_name.html (note underscore,
+            # NOT /artist/name). The small_list__link class wraps each artist anchor.
+            artist_links = soup.find_all(
+                "a", href=lambda h: h and h.startswith("/artist_")
+            )
+            log.debug("main_artists: page %d found %d artist links", _page, len(artist_links))
+
+            if not artist_links:
+                log.warning("main_artists: no /artist_ links on page %d gnr_id=%s — stopping", _page, gnr_id)
                 break
 
             page_offset = (_page - 1) * 80
-            for index, a in enumerate(soup.find_all("a"), page_offset):
+            for index, a in enumerate(artist_links, page_offset):
                 if len(results) >= count:
                     break
                 if index >= start:
@@ -644,6 +687,7 @@ class musicMp3:
                     })
             _page += 1
 
+        log.debug("main_artists: returning %d results for gnr_id=%s start=%d", len(results), gnr_id, start)
         return results
 
     def main_albums(self, section, gnr_id, sort, start, count):
@@ -659,7 +703,7 @@ class musicMp3:
                 params["section"] = section
 
             soup = self._cached_get("https://musicmp3.ru/main_albums.html", params=params)
-            if not soup.li:
+            if not self._page_has_content(soup):
                 break
 
             page_offset = (_page - 1) * 40
@@ -679,13 +723,17 @@ class musicMp3:
         soup = self._cached_get(url)
         h1 = soup.find(class_="page_title__h1")
         _artist = h1.get_text(strip=True) if h1 else ""
+        log.debug("artist_albums: url=%s artist=%r page_has_content=%s", url, _artist, self._page_has_content(soup))
         results = []
-        for album_el in soup.find_all(class_="album_report"):
+        album_els = soup.find_all(class_="album_report")
+        log.debug("artist_albums: found %d album_report elements", len(album_els))
+        for album_el in album_els:
             entry = self._parse_album_report(album_el)
             if entry:
                 entry["artist"]      = _artist
                 entry["artist_link"] = url
                 results.append(entry)
+        log.debug("artist_albums: returning %d albums", len(results))
         return results
 
     def album_tracks(self, url):

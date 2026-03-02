@@ -5,6 +5,8 @@
 #   by L2501 / MP3 Streams project
 # v2026.3: stability pass, session resilience, cache poison protection
 #   by Echostorm / Claude
+# v2026.3.4: audit fixes — log ordering, duplicate _ensure_session removed
+#   (see musicmp3.py for full change log)
 # MP3 Streams Echoed
 #
 # v2026.2 changes vs v2026.1.7:
@@ -27,7 +29,9 @@
 # 4. Now Playing screen: album art passed as fanart so it fills the background
 #    while music plays (supported by most Kodi skins).
 
+import logging
 import os
+import random
 import sys
 from urllib.parse import quote, unquote
 
@@ -156,8 +160,12 @@ def _album_context(album_url, label):
     ]
 
 
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # Ensure debug messages reach Kodi log
+
+
 # --------------------------------------------------------------------------- #
-# Routes
+# Helpers
 # --------------------------------------------------------------------------- #
 
 def _notify_error(msg):
@@ -167,9 +175,10 @@ def _notify_error(msg):
         plugin.name, msg, xbmcgui.NOTIFICATION_ERROR, 5000
     )
 
-import logging
-log = logging.getLogger(__name__)
 
+# --------------------------------------------------------------------------- #
+# Routes
+# --------------------------------------------------------------------------- #
 
 @plugin.route("/")
 def index():
@@ -277,7 +286,6 @@ def shuffle_favourites():
     Home screen action: build a shuffled playlist from all favourite songs
     and start playing immediately.
     """
-    import random
     api   = _make_musicmp3()
     items = api.get_favourites(kind="song")
 
@@ -357,7 +365,6 @@ def play_album():
         return
 
     if shuffle:
-        import random
         tracks = list(tracks)
         random.shuffle(tracks)
 
@@ -597,7 +604,7 @@ def musicmp3_search(cat):
 
     api = _make_musicmp3()
     try:
-        results = api.search(keyboardinput, cat)
+        results = api.search(keyboardinput, cat, limit=_page_size() if cat == "songs" else None)
     except Exception as exc:
         _notify_error("Search failed: {0}".format(exc))
         xbmcplugin.endOfDirectory(plugin.handle, succeeded=False)
@@ -659,6 +666,7 @@ def musicmp3_search(cat):
             play_qs = (
                 "?track_id=" + quote(t.get("track_id", ""), safe="")
                 + "&rel="    + quote(t.get("rel", ""),      safe="")
+                + "&album_url=" + quote(t.get("album_url", ""), safe="")
             )
             directory_items.append((plugin.url_for(musicmp3_play) + play_qs, li, False))
         xbmcplugin.addDirectoryItems(plugin.handle, directory_items, len(directory_items))
