@@ -111,3 +111,17 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
   <li>Diagnostic build added deep debug logging and temporary URL‑filtering fallbacks.</li>
   <li>Root cause fixes: corrected artist URL pattern (<code>/artist_name.html</code> instead of directory paths) and capped unpaginated song search results to avoid Kodi refusing to render massive lists.</li>
 </ul>
+
+<hr>
+
+<h2>v2026.3.8 – v2026.3.9</h2>
+
+<h3>UX & Logging Polish</h3>
+<ul>
+  <li>Debug logging level lowered from <code>DEBUG</code> to <code>WARNING</code> for production use. Flip <code>basicConfig(level=logging.WARNING)</code> back to <code>DEBUG</code> in <code>default.py</code> to re-enable verbose output.</li>
+  <li>Context menu labels for the favourites system renamed to avoid confusion with Kodi's own built-in "Add to Favourites" action, which saves plugin entry points rather than song/album/artist data.</li>
+  <li>Labels are now kind-specific: <strong>Save to My Songs</strong>, <strong>Save to My Albums</strong>, <strong>Save to My Artists</strong> with matching <strong>Remove from …</strong> entries.</li>
+  <li>Song items now show both Save and Remove entries simultaneously in the context menu, so you can add or remove without first checking whether the song is already saved.</li>
+  <li>Album and artist items continue to show one entry at a time (Save or Remove) based on current saved state.</li>
+  <li>Toast notifications updated to match: <em>"Saved to My Songs: Title"</em> on add, <em>"Removed from saved list."</em> on remove.</li>
+</ul>
