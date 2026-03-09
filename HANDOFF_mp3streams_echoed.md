@@ -9,7 +9,7 @@
 |---|---|
 | Plugin name | MP3 Streams Echoed |
 | Addon ID | `plugin.audio.m3sr2019` |
-| Current version | **2026.3.7** |
+| Current version | **2026.3.10** |
 | Authors | Echostorm / Claude |
 | Original author | L2501 (v0.0.7 base) |
 | Source site | https://musicmp3.ru/ |
@@ -17,7 +17,7 @@
 | User's Kodi path | `C:\Users\Echostorm\AppData\Roaming\Kodi\addons\plugin.audio.m3sr2019\` |
 | User's archive path | `E:\Archive\` |
 
-Latest deliverable: `plugin_audio_m3sr2019-2026_3_7.zip`
+Latest deliverable: `plugin_audio_m3sr2019-2026_3_10.zip`
 
 Previous transcript references:
 - `/mnt/transcripts/2026-03-02-07-33-02-kodi-plugin-audit-2026-3-3.txt` — audit through v2026.3.3
@@ -113,7 +113,11 @@ All routing via the `routing` library. Query-string params used for all dynamic 
 
 - `_make_musicmp3()` — constructs `musicMp3` from settings, used by every route
 - `_set_music_tag(li, ...)` — sets all MusicInfoTag fields via Kodi 19+ API (no deprecated `setInfo`)
-- `_fav_context(api, kind, url, ...)` — returns Add/Remove favourites context menu entry
+- `_kind_label(kind)` — maps `"song"/"album"/"artist"` to `"My Songs"/"My Albums"/"My Artists"` for use in context menu labels and toasts
+- `_fav_add_action(kind, url, label, ...)` — builds the `RunPlugin(...)` URL string for the Save action
+- `_fav_remove_action(url)` — builds the `RunPlugin(...)` URL string for the Remove action
+- `_fav_context(api, kind, url, ...)` — returns Save **or** Remove context menu entry for albums/artists (one at a time, based on current saved state)
+- `_song_fav_context(api, kind, url, ...)` — returns **both** Save and Remove entries for song items (always both visible)
 - `_album_context(album_url, label)` — returns Play Album + Shuffle Album context menu entries
 - `_notify_error(msg)` — shows Kodi error toast and logs; called in every route's except block
 - `_link_url(route_func, link)` — builds plugin URL with `?link=` query param
@@ -122,10 +126,12 @@ All routing via the `routing` library. Query-string params used for all dynamic 
 
 ### Context menus present on:
 
-- **Album items** (all listing views): ▶ Play Album, 🔀 Shuffle Album, Add/Remove Favourites
-- **Artist items**: Add/Remove Favourites
-- **Track items** (album view + song search): 🎬 Toggle Visualizer, 🔀 Shuffle Album, Add/Remove Favourites
-- **Favourite items**: Remove from Favourites
+- **Album items** (all listing views): ▶ Play Album, 🔀 Shuffle Album, ★ Save to My Albums / ✕ Remove from My Albums
+- **Artist items**: ★ Save to My Artists / ✕ Remove from My Artists
+- **Track items** (album view + song search): 🎬 Toggle Visualizer, 🔀 Shuffle Album, ★ Save to My Songs **and** ✕ Remove from My Songs (both always shown)
+- **Favourite items** (when browsing My Songs/Albums/Artists): ✕ Remove from My [kind]
+
+Note: albums and artists show Save OR Remove depending on current saved state. Songs always show both so you can act without checking state first. Labels deliberately avoid "Add to Favourites" to prevent confusion with Kodi's built-in favourites system, which saves plugin entry points rather than song/album/artist data.
 
 ---
 
@@ -253,10 +259,11 @@ These were assumed and wrong until the debug log was analysed. They affect scrap
 | 2026.3.7 | `main_artists` still used wrong URL pattern | Removed `/artist/` filter and fallback entirely. Now correctly filters `href.startswith("/artist_")`. |
 | 2026.3.7 | `_page_has_content` had wrong/dead URL patterns | Removed loose internal-link fallback. Replaced dead `/album/` href check (no such URL pattern) with `__album_` (confirmed double-underscore pattern from debug log). |
 | 2026.3.7 | Song search showed nothing despite 9,832 matching rows | Site returns all songs in one unaginated response. Kodi silently fails with ~10k ListItems. Capped at `_page_size()` via new `limit` param on `search()`. |
+| 2026.3.10 | "Too many SQL variables" crash on large albums (box sets, multi-disc) | SQLite limits bound variables to 999 per statement. `Track` has 8 fields → `replace_many()` fails at ~124 rows. Added `_save_tracks()` which chunks inserts at 100 rows. Applied to both `album_tracks()` and `search()`. |
 
 ---
 
-## Known Remaining Issues (as of 2026.3.7)
+## Known Remaining Issues (as of 2026.3.10)
 
 The user reported search is still producing errors and there are a few other unspecified errors. A fresh debug log is needed to investigate these.
 
@@ -316,6 +323,9 @@ No details captured. Recommend:
 | 2026.3.5 | Fix artist pages returning zero albums: optional artist/date in `_parse_album_report` |
 | 2026.3.6 | Diagnostic build: debug logging throughout; loose fallbacks added as stopgap |
 | 2026.3.7 | Fix confirmed from live debug log: correct `/artist_` URL pattern throughout; correct `__album_` pattern; song search capped at page_size |
+| 2026.3.8 | Debug logging level lowered to WARNING (was DEBUG). Context menu labels for favourites system renamed away from "Add to Favourites" to avoid clash with Kodi's built-in favourites. Song items now show both Save and Remove simultaneously. |
+| 2026.3.9 | Context menu labels made kind-specific: "Save to My Songs", "Save to My Albums", "Save to My Artists" with matching Remove labels. Toasts updated to match. |
+| 2026.3.10 | Fix "Too many SQL variables" crash on large albums. `_save_tracks()` helper chunks `replace_many()` at 100 rows. Applied to `album_tracks()` and `search()`. |
 
 ---
 

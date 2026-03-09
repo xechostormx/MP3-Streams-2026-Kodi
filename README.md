@@ -125,3 +125,14 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
   <li>Album and artist items continue to show one entry at a time (Save or Remove) based on current saved state.</li>
   <li>Toast notifications updated to match: <em>"Saved to My Songs: Title"</em> on add, <em>"Removed from saved list."</em> on remove.</li>
 </ul>
+
+<hr>
+
+<h2>v2026.3.10</h2>
+
+<h3>Bug Fix — Large Album Crash</h3>
+<ul>
+  <li>Fixed a crash ("Too many SQL variables") when opening large albums such as remastered deluxe box sets with 100+ tracks.</li>
+  <li>Root cause: SQLite enforces a limit of 999 bound variables per statement on older builds. <code>Track</code> has 8 fields, so a single <code>replace_many()</code> call fails at ~124 rows. Multi-disc box sets exceed this easily.</li>
+  <li>Fix: new <code>_save_tracks()</code> helper in <code>musicmp3.py</code> chunks inserts at 100 rows at a time. Applied to both album track saves and song search saves.</li>
+</ul>
