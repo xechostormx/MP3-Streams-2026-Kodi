@@ -91,7 +91,7 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
 
 <h3>Stability & Correctness Pass</h3>
 <ul>
-  <li>Resolved silent “no results” failures caused by stale sessions and poisoned cache entries.</li>
+  <li>Resolved silent "no results" failures caused by stale sessions and poisoned cache entries.</li>
   <li>Validated cache entries for real content before use or storage.</li>
   <li>Enforced session refresh before all listing and search requests.</li>
   <li>Added retry logic for transient network and mid‑session expiry failures.</li>
@@ -107,21 +107,9 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
 <ul>
   <li>Artists were present but not visible in some skins; fixed by adding <code>setLabel2(artist)</code> to album ListItems.</li>
   <li>Audit pass fixed several silent issues: duplicate <code>_ensure_session</code> definition, log object used before initialization, artist parsing pulling nav/header links, login‑wall pages misdetected, and song search overwriting stored <code>album_url</code> values.</li>
-  <li>Artist pages returned zero albums due to requiring fields that don’t exist on artist pages; made those fields optional.</li>
+  <li>Artist pages returned zero albums due to requiring fields that don't exist on artist pages; made those fields optional.</li>
   <li>Diagnostic build added deep debug logging and temporary URL‑filtering fallbacks.</li>
   <li>Root cause fixes: corrected artist URL pattern (<code>/artist_name.html</code> instead of directory paths) and capped unpaginated song search results to avoid Kodi refusing to render massive lists.</li>
-</ul>
-
-<hr>
-
-<h2>v2026.3.11</h2>
-
-<h3>Music Virtualizer Toggle</h3>
-<ul>
-  <li>Added a <strong>Music Virtualizer</strong> context menu entry to all song items (search results and album track listings).</li>
-  <li>Uses JSON-RPC <code>audiooutput.stereoupmix</code> to read the current state once per directory load and write it on toggle. Label reflects live state: <em>Music Virtualizer: ON [toggle off]</em> or <em>Music Virtualizer: OFF [toggle on]</em>.</li>
-  <li>Falls back to a neutral label if the setting is unavailable on the current hardware or Kodi build.</li>
-  <li>New route: <code>/virt/toggle</code>. New helper: <code>_virt_label()</code>.</li>
 </ul>
 
 <hr>
@@ -138,13 +126,58 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
   <li>Toast notifications updated to match: <em>"Saved to My Songs: Title"</em> on add, <em>"Removed from saved list."</em> on remove.</li>
 </ul>
 
-<hr>
-
-<h2>v2026.3.10</h2>
-
 <h3>Bug Fix — Large Album Crash</h3>
 <ul>
   <li>Fixed a crash ("Too many SQL variables") when opening large albums such as remastered deluxe box sets with 100+ tracks.</li>
   <li>Root cause: SQLite enforces a limit of 999 bound variables per statement on older builds. <code>Track</code> has 8 fields, so a single <code>replace_many()</code> call fails at ~124 rows. Multi-disc box sets exceed this easily.</li>
   <li>Fix: new <code>_save_tracks()</code> helper in <code>musicmp3.py</code> chunks inserts at 100 rows at a time. Applied to both album track saves and song search saves.</li>
+</ul>
+
+<hr>
+
+<h2>v2026.3.14</h2>
+
+<h3>Bug Fix — Artist Name Not Displaying in Album Listings (Root Cause)</h3>
+<ul>
+  <li>Fixed artist names not appearing in album listings across all routes (genre browse, artist albums, search albums, favourites).</li>
+  <li>Root cause: <code>_set_music_tag()</code> called only <code>setArtist()</code>, which populates the track-level artist field. When <code>setContent</code> is <code>"albums"</code>, Kodi and most skins (including Aeon Nox Silvo) read the <strong>albumartist</strong> field — not artist — for the subtitle on album ListItems. <code>setArtist()</code> alone is only read in song/track context.</li>
+  <li>Fix: added <code>tag.setAlbumArtist(artist)</code> alongside <code>tag.setArtist(artist)</code> in <code>_set_music_tag()</code>. Both fields are now always populated together whenever an artist value is present. No other code changes required.</li>
+  <li>No changes to <code>musicmp3.py</code>.</li>
+</ul>
+
+<hr>
+
+<h2>v2026.3.13</h2>
+
+<h3>Bug Fix — Artist Name Missing on Genre Album Listings</h3>
+<ul>
+  <li>Fixed artist names not appearing when browsing genre album lists (e.g. Top Albums → Top Metal → Top Metal).</li>
+  <li>Root cause: <code>_parse_album_report()</code> used <code>album_el.parent</code> as the search scope for sibling fields (<code>album_report__artist</code>, <code>album_report__date</code>, <code>album_report__details_content</code>). This assumed <code>album_report</code> was a direct child of the <code>&lt;li&gt;</code>. On genre listing pages, the site wraps <code>album_report</code> in one or more intermediate divs, so <code>.parent</code> was the wrapper div rather than the <code>&lt;li&gt;</code>, and <code>scope.find()</code> could not see the sibling artist element at all.</li>
+  <li>Fix: replaced the single <code>.parent</code> lookup with a new helper, <code>_find_album_sibling()</code>. It first tries <code>album_el.find()</code> (handles layouts where the artist is nested inside the album block), then walks up the ancestor chain up to 4 levels, checking each ancestor's direct children. This is robust against any nesting depth without risking bleed-over into adjacent album blocks.</li>
+  <li>Same fix applied to <code>album_report__date</code> and <code>album_report__details_content</code> — both were affected by the same root cause.</li>
+  <li>Artist pages are unaffected: <code>album_report__artist</code> is intentionally absent there, and <code>artist_albums()</code> still overrides artist from the page H1.</li>
+</ul>
+
+<hr>
+
+<h2>v2026.3.12</h2>
+
+<h3>Bug Fix — Artist Name Missing in Favourites Listings</h3>
+<ul>
+  <li>Fixed artist names not appearing in the <strong>Favourite Albums</strong> and <strong>Favourite Songs</strong> listings.</li>
+  <li>Root cause: the <code>favourites()</code> route was missing <code>li.setLabel2(artist)</code>, which every other album listing route (<code>main_albums</code>, <code>artists_albums</code>, search albums) already calls. The <code>InfoTagMusic</code> artist field was set correctly, but skins that display the artist as a subtitle read Label2, not the music tag.</li>
+  <li>Fix: added <code>li.setLabel2(f["artist"])</code> for <code>kind == "album"</code> and <code>kind == "song"</code>. Intentionally skipped for <code>kind == "artist"</code> since the artist name is already the primary label.</li>
+  <li>No changes to <code>musicmp3.py</code>.</li>
+</ul>
+
+<hr>
+
+<h2>v2026.3.11</h2>
+
+<h3>Music Virtualizer Toggle</h3>
+<ul>
+  <li>Added a <strong>Music Virtualizer</strong> context menu entry to all song items (search results and album track listings).</li>
+  <li>Uses JSON-RPC <code>audiooutput.stereoupmix</code> to read the current state once per directory load and write it on toggle. Label reflects live state: <em>Music Virtualizer: ON [toggle off]</em> or <em>Music Virtualizer: OFF [toggle on]</em>.</li>
+  <li>Falls back to a neutral label if the setting is unavailable on the current hardware or Kodi build.</li>
+  <li>New route: <code>/virt/toggle</code>. New helper: <code>_virt_label()</code>.</li>
 </ul>
