@@ -2,10 +2,10 @@
   <img src="title.png" alt="MP3 Streams Echoed" width="700">
 </p>
 <p align="left">
-  <img src="screen.png" alt="MP3 Streams Echoed" width="350">
+  <img src="screen.png" alt="MP3 Streams Echoed" width="500">
 </p>
 <p align="right">
-  <img src="screen2.png" alt="MP3 Streams Echoed" width="350">
+  <img src="screen2.png" alt="MP3 Streams Echoed" width="500">
 </p>
 
 <p align="center">
