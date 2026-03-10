@@ -1,8 +1,11 @@
 <p align="center">
   <img src="title.png" alt="MP3 Streams Echoed" width="700">
 </p>
-<p align="center">
-  <img src="screen.png" alt="MP3 Streams Echoed" width="700">
+<p align="left">
+  <img src="screen.png" alt="MP3 Streams Echoed" width="350">
+</p>
+<p align="right">
+  <img src="screen2.png" alt="MP3 Streams Echoed" width="350">
 </p>
 
 <p align="center">
