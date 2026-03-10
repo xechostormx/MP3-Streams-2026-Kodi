@@ -11,7 +11,7 @@
 
 <p align="center">
   <strong>A modern, fully Python-3-native rebuild of the classic MP3 Streams Reloaded.</strong><br>
-  Browse and stream music from musicmp3.ru — rebuilt from scratch for Kodi 19+.
+  Browse and stream music — rebuilt from scratch for Kodi 19+.
 </p>
 
 ---
