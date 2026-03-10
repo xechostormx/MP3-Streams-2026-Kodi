@@ -114,7 +114,19 @@ Base version of MP3 Streams Reloaded. Provided artist and album browsing with ba
 
 <hr>
 
-<h2>v2026.3.8 – v2026.3.9</h2>
+<h2>v2026.3.11</h2>
+
+<h3>Music Virtualizer Toggle</h3>
+<ul>
+  <li>Added a <strong>Music Virtualizer</strong> context menu entry to all song items (search results and album track listings).</li>
+  <li>Uses JSON-RPC <code>audiooutput.stereoupmix</code> to read the current state once per directory load and write it on toggle. Label reflects live state: <em>Music Virtualizer: ON [toggle off]</em> or <em>Music Virtualizer: OFF [toggle on]</em>.</li>
+  <li>Falls back to a neutral label if the setting is unavailable on the current hardware or Kodi build.</li>
+  <li>New route: <code>/virt/toggle</code>. New helper: <code>_virt_label()</code>.</li>
+</ul>
+
+<hr>
+
+<h2>v2026.3.8 – v2026.3.10</h2>
 
 <h3>UX & Logging Polish</h3>
 <ul>
