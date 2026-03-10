@@ -1,6 +1,9 @@
 <p align="center">
   <img src="title.png" alt="MP3 Streams Echoed" width="700">
 </p>
+<p align="center">
+  <img src="screen.png" alt="MP3 Streams Echoed" width="700">
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Kodi-21%20Omega-1E8A70?style=flat-square&logo=kodi&logoColor=white" alt="Kodi 21">
